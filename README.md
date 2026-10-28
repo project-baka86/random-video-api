@@ -122,6 +122,23 @@ PORT=3001 node server.js
 | `GET` | `/api/random` | 随机抽一个视频（全局目录） |
 | `GET` | `/api/video/:bvid` | 分发指定视频 |
 
+`POST /api/videos` 支持一并标注上传来源（缺省时 `added_by='api'`、时间为当前本地时间）：
+
+```json
+{
+  "bvid": "BV1xx411c7mD",
+  "added_by": "群友甲",
+  "qq": 10001,
+  "group_id": 123456,
+  "group_name": "抽象交流群",
+  "time": "2026-10-28 21:00:00"
+}
+```
+
+字段也接受 `user` / `nickname` / `uploader` 作为 `added_by` 的别名，以及 `user_id` 作为 `qq`；
+也可以用查询串传 `?group_id=...&group_name=...`。记录会写入 `videolist.json`，包含
+`time`、`time_iso`、`group_id`、`group_name`、`qq`、`added_by`，供分发与界面展示 provenance。
+
 `POST /api/videos/:bvid/prepare` 返回示例（在实例上调用 / Hub 派发成功后）：
 
 ```json
@@ -241,7 +258,7 @@ curl -i 'http://hub:3000/api/video/BV1xx411c7mD?delivery=redirect'
 npm test
 ```
 
-全部离线（假 B 站 + 临时端口），覆盖 48 个用例：存储、B 站风控降级、单机分发、
+全部离线（假 B 站 + 临时端口），覆盖 52 个用例：存储、B 站风控降级、单机分发、
 Range、大小限制、令牌鉴权（含只配 `INSTANCE_TOKEN` 时下载必须带令牌、严格模式 `503`）、
 注册表心跳/TTL/持久化/`markCached`、实例上报器，以及 Hub + 双实例的端到端集成
 （目录聚合、302 直链、Hub 代理、Range 透传、故障转移、心跳过期摘除、集群鉴权、

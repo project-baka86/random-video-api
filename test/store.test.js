@@ -4,7 +4,38 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { VideoStore, normalizeBvid, resolveDataFile } from '../lib/store.js'
+import { VideoStore, normalizeBvid, resolveDataFile, formatLocalTime, describeSource } from '../lib/store.js'
+
+test('formatLocalTime 输出本地时间，非法输入返回空串', () => {
+  assert.equal(formatLocalTime(new Date(2026, 9, 28, 21, 0, 5)), '2026-10-28 21:00:05')
+  assert.equal(formatLocalTime('not-a-date'), '')
+})
+
+test('describeSource 组装上传者/群聊/时间标注', () => {
+  assert.equal(
+    describeSource({
+      added_by: '甲',
+      qq: 10001,
+      group_name: '抽象群',
+      group_id: 123456,
+      time: '2026-10-28 21:00:00'
+    }),
+    '来源：甲(10001)｜抽象群(123456)｜2026-10-28 21:00:00'
+  )
+  // 只有群号
+  assert.equal(describeSource({ group_id: 999 }), '来源：群 999')
+  // 私聊
+  assert.equal(describeSource({ added_by: '乙', group_id: '私聊' }), '来源：乙｜私聊')
+  // 缺 field 时用 time_iso 兜底
+  assert.match(
+    describeSource({ qq: 7, time_iso: '2026-10-28T06:00:00.000Z' }),
+    /^来源：QQ 7｜\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+  )
+  // 自定义前缀 / 无信息
+  assert.equal(describeSource({ qq: 7 }, { prefix: '上传者' }), '上传者：QQ 7')
+  assert.equal(describeSource({}), '')
+  assert.equal(describeSource(null), '')
+})
 
 function tmpFile(name = 'videolist.json') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rv-store-'))

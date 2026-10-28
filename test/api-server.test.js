@@ -123,6 +123,55 @@ test('POST /api/videos 添加视频并校验 BV 号', async () => {
   }
 })
 
+test('POST /api/videos 记录时间/群聊/上传者元信息', async () => {
+  const ctx = await startServer()
+  try {
+    const res = await fetch(`${ctx.base}/api/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bvid: VALID_BVID,
+        added_by: '群友甲',
+        qq: 10001,
+        group_id: 123456,
+        group_name: '抽象交流群',
+        time: '2026-10-28 21:00:00'
+      })
+    })
+    assert.equal(res.status, 201)
+    const { video } = await json(res)
+    assert.equal(video.added_by, '群友甲')
+    assert.equal(video.qq, 10001)
+    assert.equal(video.group_id, 123456)
+    assert.equal(video.group_name, '抽象交流群')
+    assert.equal(video.time, '2026-10-28 21:00:00')
+    assert.ok(video.time_iso, '应记录 ISO 时间')
+    // 已落盘，其他进程可见
+    const stored = ctx.store.find(VALID_BVID)
+    assert.equal(stored.group_name, '抽象交流群')
+    assert.equal(stored.qq, 10001)
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('POST /api/videos 未提供元信息时用默认值', async () => {
+  const ctx = await startServer()
+  try {
+    const res = await fetch(`${ctx.base}/api/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bvid: VALID_BVID })
+    })
+    const { video } = await json(res)
+    assert.equal(video.added_by, 'api')
+    assert.match(video.time, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+    assert.ok(video.time_iso)
+  } finally {
+    await ctx.close()
+  }
+})
+
 test('GET /api/videos 列表 / GET /api/videos/:bvid / DELETE', async () => {
   const ctx = await startServer()
   try {
