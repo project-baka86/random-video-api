@@ -1,7 +1,56 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { PassThrough } from 'node:stream'
 
-import { getVideoInfo, getPlayUrl, BilibiliError, HEADER_PROFILES } from '../lib/bilibili.js'
+import {
+  getVideoInfo,
+  getPlayUrl,
+  BilibiliError,
+  HEADER_PROFILES,
+  toNodeStream,
+  discardBody
+} from '../lib/bilibili.js'
+
+test('toNodeStream 同时兼容 WHATWG 流与 node-fetch 的 Node 流', async () => {
+  // 原生 fetch：body 是 WHATWG ReadableStream
+  const web = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('hello'))
+      controller.close()
+    }
+  })
+  const fromWeb = toNodeStream(web)
+  const chunks = []
+  for await (const chunk of fromWeb) chunks.push(chunk)
+  assert.equal(Buffer.concat(chunks).toString(), 'hello')
+
+  // node-fetch（Yunzai 环境）：body 是 Node PassThrough，必须原样返回
+  const pass = new PassThrough()
+  pass.end('world')
+  const asNode = toNodeStream(pass)
+  assert.equal(asNode, pass)
+  const chunks2 = []
+  for await (const chunk of asNode) chunks2.push(chunk)
+  assert.equal(Buffer.concat(chunks2).toString(), 'world')
+
+  assert.equal(toNodeStream(null), null)
+  assert.equal(toNodeStream(undefined), null)
+})
+
+test('discardBody 对两种流都能安全释放', () => {
+  const pass = new PassThrough()
+  pass.on('error', () => {})
+  discardBody(pass)
+  assert.equal(pass.destroyed, true)
+
+  let cancelled = false
+  discardBody({ cancel: () => { cancelled = true }, destroy: () => {} })
+  assert.equal(cancelled, true)
+
+  // 空值不应抛错
+  discardBody(null)
+  discardBody(undefined)
+})
 
 test('遇到 412 风控会自动切换请求头组合', async () => {
   const calls = []

@@ -258,7 +258,7 @@ curl -i 'http://hub:3000/api/video/BV1xx411c7mD?delivery=redirect'
 npm test
 ```
 
-全部离线（假 B 站 + 临时端口），覆盖 52 个用例：存储、B 站风控降级、单机分发、
+全部离线（假 B 站 + 临时端口），覆盖 54 个用例：存储、B 站风控降级、单机分发、
 Range、大小限制、令牌鉴权（含只配 `INSTANCE_TOKEN` 时下载必须带令牌、严格模式 `503`）、
 注册表心跳/TTL/持久化/`markCached`、实例上报器，以及 Hub + 双实例的端到端集成
 （目录聚合、302 直链、Hub 代理、Range 透传、故障转移、心跳过期摘除、集群鉴权、
