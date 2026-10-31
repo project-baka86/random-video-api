@@ -74,6 +74,8 @@ test('GET /health 返回服务状态', async () => {
     const data = await json(res)
     assert.equal(data.ok, true)
     assert.equal(data.count, 0)
+    assert.equal(data.limits.max_video_mb, 50)
+    assert.equal(data.limits.max_video_minutes, 10)
   } finally {
     await ctx.close()
   }
@@ -311,6 +313,56 @@ test('超过大小限制的视频被拒绝并移出列表', async () => {
     const res = await fetch(`${ctx.base}/api/video/${VALID_BVID}`)
     assert.equal(res.status, 413)
     assert.equal(ctx.store.has(VALID_BVID), false)
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('超过时长上限的视频被拒绝，且不写入列表', async () => {
+  const ctx = await startServer({ maxDurationSeconds: 10 })
+  try {
+    const res = await fetch(`${ctx.base}/api/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bvid: VALID_BVID })
+    })
+    assert.equal(res.status, 413)
+    assert.match((await json(res)).error, /时长/)
+    assert.equal(ctx.store.has(VALID_BVID), false)
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('分发 / 解析时超过时长上限的视频被移出列表', async () => {
+  const ctx = await startServer({ maxDurationSeconds: 10 })
+  try {
+    // 旧数据（列表里已有的超长视频）：分发时拦截并清理
+    ctx.store.add({ bvid: VALID_BVID, title: '超长视频' })
+    const res = await fetch(`${ctx.base}/api/video/${VALID_BVID}`)
+    assert.equal(res.status, 413)
+    assert.equal(ctx.store.has(VALID_BVID), false)
+
+    // prepare 同样拦截
+    ctx.store.add({ bvid: VALID_BVID, title: '超长视频' })
+    const prep = await fetch(`${ctx.base}/api/videos/${VALID_BVID}/prepare`, { method: 'POST' })
+    assert.equal(prep.status, 413)
+    assert.equal(ctx.store.has(VALID_BVID), false)
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('maxDurationSeconds=0 关闭时长限制', async () => {
+  const ctx = await startServer({ maxDurationSeconds: 0 })
+  try {
+    const res = await fetch(`${ctx.base}/api/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bvid: VALID_BVID })
+    })
+    assert.equal(res.status, 201)
+    assert.equal(ctx.store.has(VALID_BVID), true)
   } finally {
     await ctx.close()
   }
